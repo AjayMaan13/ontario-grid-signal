@@ -1,0 +1,18 @@
+# Checks we knowingly skip. Everything else must pass (CI fails otherwise).
+# Reason for all of them: this is a short-lived learning cluster; the fix costs
+# money or adds moving parts that teach nothing for this project.
+skip-check:
+  - CKV2_GCP_18 # firewall rules: GKE creates the ones it needs itself
+  - CKV_GCP_12  # network policy: nothing here needs pod-to-pod restrictions yet
+  - CKV_GCP_20  # authorized networks: home IP changes; access is via IAM login
+  - CKV_GCP_25  # private cluster: needs Cloud NAT (extra cost) for image pulls
+  - CKV_GCP_64  # private nodes: same reason as above
+  - CKV_GCP_26  # VPC flow logs: extra logging cost
+  - CKV_GCP_61  # flow logs / intranode visibility: same
+  - CKV_GCP_62  # bucket access logging: extra cost, data is public IESO data
+  - CKV_GCP_65  # Google Groups for RBAC: needs a Workspace domain
+  - CKV_GCP_66  # binary authorization: no image-signing pipeline
+  - CKV_GCP_69  # metadata server: enabled on the node pool (checkov looks at the removed default pool)
+  - CKV_GCP_78  # raw bucket versioning: raw files are never overwritten, so no history to keep
+  - CKV_GCP_81  # BigQuery customer-managed keys: public data, Google-managed keys are fine
+  - CKV_GCP_84  # Artifact Registry customer-managed keys: same
