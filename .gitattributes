@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Real IESO files must stay byte-for-byte (no line-ending rewrite).
+tests/fixtures/** -text
