@@ -15,5 +15,6 @@ variable "zone" {
 
 variable "node_count" {
   type    = number
-  default = 2
+  default = 3 # 2 wasn't enough: GKE's own system pods (kube-dns, fluentbit, ...) already
+  # use ~860m of each e2-medium's ~940m allocatable CPU, leaving no room for Kafka.
 }

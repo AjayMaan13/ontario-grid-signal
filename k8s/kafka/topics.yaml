@@ -1,0 +1,51 @@
+# 6 partitions per topic (guide's number): plenty of headroom over our ~12 events/hour,
+# and it sets the max useful consumer replicas for KEDA later (Weekend 7).
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: ieso.demand.realtime
+  labels:
+    strimzi.io/cluster: grid-kafka
+spec:
+  partitions: 6
+  replicas: 1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: ieso.demand.predispatch
+  labels:
+    strimzi.io/cluster: grid-kafka
+spec:
+  partitions: 6
+  replicas: 1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: ieso.demand.ici
+  labels:
+    strimzi.io/cluster: grid-kafka
+spec:
+  partitions: 6
+  replicas: 1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: ieso.reconciliation.republish
+  labels:
+    strimzi.io/cluster: grid-kafka
+spec:
+  partitions: 6
+  replicas: 1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: grid.signals
+  labels:
+    strimzi.io/cluster: grid-kafka
+spec:
+  partitions: 6
+  replicas: 1
