@@ -18,7 +18,7 @@ down:
 	./scripts/check_orphans.sh
 
 test:
-	uv run --with pytest pytest
+	uv run --with pytest --with jsonschema pytest
 
 # Install Strimzi (the Kafka operator), then the cluster and topics it manages.
 kafka-up:

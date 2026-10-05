@@ -1,7 +1,10 @@
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import date, datetime
 
 from parsers.common import hour_ending_to_utc
+
+NS = "{http://www.ieso.ca/schema}"
 
 
 @dataclass
@@ -31,6 +34,25 @@ def parse_predisp_totals(text: str) -> list[PredispHour]:
             raise ValueError(f"line {number}: expected {len(columns)} columns, got {line!r}")
         hour = int(parts[0])
         rows.append(PredispHour(hour_ending_to_utc(delivery_date, hour), delivery_date, hour, float(parts[load_col])))
+
+    if [r.hour_ending for r in rows] != list(range(1, 25)):
+        raise ValueError("expected hours 1..24 in order")
+    return rows
+
+
+def parse_predisp_totals_xml(xml_text: str) -> list[PredispHour]:
+    """Same data as the CSV, from PUB_PredispTotals_<yyyymmdd>[_vN].xml (the archiver keeps the XML)."""
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as err:
+        raise ValueError(f"bad XML: {err}") from err
+
+    day = date.fromisoformat(root.findtext(f".//{NS}DeliveryDate"))
+    rows = []
+    for block in root.iter(NS + "HourlyConstrainedEnergy"):
+        hour = int(block.findtext(NS + "DeliveryHour"))
+        values = {mq.findtext(NS + "MarketQuantity"): float(mq.findtext(NS + "EnergyMW")) for mq in block.findall(NS + "MQ")}
+        rows.append(PredispHour(hour_ending_to_utc(day, hour), day, hour, values["Total Load"]))
 
     if [r.hour_ending for r in rows] != list(range(1, 25)):
         raise ValueError("expected hours 1..24 in order")

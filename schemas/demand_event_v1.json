@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Demand event, schema version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "report", "measure", "interval_start", "zone", "version", "value_mw", "published_at", "ingested_at", "source_uri", "content_sha256", "reason"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "report": {"enum": ["RealtimeTotals", "PredispTotals", "ICIDemand"]},
+    "measure": {"enum": ["ontario_demand", "total_load"]},
+    "interval_start": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "zone": {"const": "ONTARIO"},
+    "version": {"type": "integer", "minimum": 1},
+    "value_mw": {"type": "number"},
+    "published_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "ingested_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "source_uri": {"type": "string", "minLength": 1},
+    "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "reason": {"enum": ["live", "backfill", "reconciliation"]}
+  }
+}

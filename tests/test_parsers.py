@@ -118,3 +118,18 @@ def test_predisp_totals_missing_hours_fail_loudly():
     lines = read("PUB_PredispTotals_20260927_v14.csv").splitlines()
     with pytest.raises(ValueError):
         parse_predisp_totals("\n".join(lines[:-3]))
+
+
+def test_predisp_totals_xml_matches_the_csv_of_the_same_version():
+    from parsers.predisp_totals import parse_predisp_totals_xml
+
+    from_xml = parse_predisp_totals_xml(read("PUB_PredispTotals_20260927_v14.xml"))
+    from_csv = parse_predisp_totals(read("PUB_PredispTotals_20260927_v14.csv"))
+    assert from_xml == from_csv
+
+
+def test_predisp_totals_xml_truncated_file_fails_loudly():
+    from parsers.predisp_totals import parse_predisp_totals_xml
+
+    with pytest.raises(ValueError):
+        parse_predisp_totals_xml(read("PUB_PredispTotals_20260927_v14.xml")[:3000])
