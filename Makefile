@@ -4,7 +4,7 @@ ZONE    = northamerica-northeast2-a
 
 STRIMZI_VERSION = 1.2.0
 
-.PHONY: up down test kafka-up kafka-test producer-build producer-backfill producer-live
+.PHONY: up down test kafka-up kafka-test kafka-count producer-build producer-backfill producer-live
 
 # Create the cluster and point kubectl at it.
 up:
@@ -53,3 +53,8 @@ producer-backfill:
 producer-live:
 	kubectl apply -f k8s/producer/serviceaccount.yaml -f k8s/producer/deployment.yaml
 	kubectl -n grid rollout status deployment/producer
+
+# How many events each topic holds. Run it twice, a minute apart, to watch it grow.
+kafka-count:
+	kubectl -n kafka run kafka-count --rm -i --restart=Never --image=quay.io/strimzi/kafka:$(STRIMZI_VERSION)-kafka-4.3.1 -- bash -c \
+		'for t in ieso.demand.ici ieso.demand.predispatch ieso.demand.realtime; do echo -n "$$t: "; bin/kafka-get-offsets.sh --bootstrap-server grid-kafka-kafka-bootstrap:9092 --topic $$t | awk -F: "{s+=\$$3} END{print s}"; done'
