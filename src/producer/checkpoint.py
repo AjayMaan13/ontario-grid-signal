@@ -11,8 +11,9 @@ class Checkpoint:
     A crash in between means the event is sent again: at-least-once, never lost.
     """
 
-    def __init__(self, seen=None):
+    def __init__(self, seen=None, files=None):
         self.seen = seen or {}
+        self.files = set(files or [])  # "report/name" of every file fully sent, so it is never downloaded twice
 
     @staticmethod
     def _id(event):
@@ -34,9 +35,16 @@ class Checkpoint:
         if previous is None or event["version"] >= previous[0]:  # an old version never overwrites a newer one
             self.seen[self._id(event)] = [event["version"], event["value_mw"]]
 
+    def is_file_done(self, report, name) -> bool:
+        return f"{report}/{name}" in self.files
+
+    def mark_file_done(self, report, name):
+        self.files.add(f"{report}/{name}")
+
     def to_json(self) -> str:
-        return json.dumps(self.seen)
+        return json.dumps({"intervals": self.seen, "files": sorted(self.files)})
 
     @classmethod
     def from_json(cls, text: str):
-        return cls(json.loads(text))
+        data = json.loads(text)
+        return cls(data["intervals"], data["files"])

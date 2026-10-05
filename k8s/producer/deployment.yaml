@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: producer
+  namespace: grid
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # never two producers at once during an update: they share one checkpoint file
+  selector:
+    matchLabels: {app: producer}
+  template:
+    metadata:
+      labels: {app: producer}
+    spec:
+      serviceAccountName: producer
+      containers:
+        - name: producer
+          image: northamerica-northeast2-docker.pkg.dev/ontario-grid-signal/grid/producer:latest
+          env:
+            - {name: MODE, value: live}
+            - {name: KAFKA_BOOTSTRAP, value: "grid-kafka-kafka-bootstrap.kafka:9092"}
+            - {name: CHECKPOINT_URI, value: "gs://ontario-grid-signal-state/producer/checkpoint.json"}
+            - {name: LOOKBACK_HOURS, value: "48"}
+            - {name: POLL_SECONDS, value: "600"}
+          resources:
+            requests: {cpu: 25m, memory: 128Mi}  # the nodes have little CPU to spare
+            limits: {memory: 256Mi}

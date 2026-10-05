@@ -65,3 +65,18 @@ resource "google_project_iam_member" "bq_jobs" {
   role    = "roles/bigquery.jobUser"
   member  = "serviceAccount:${each.value}"
 }
+
+# producer: saves its checkpoint (what it has already sent) in the state bucket
+resource "google_storage_bucket_iam_member" "producer_checkpoint" {
+  bucket = data.google_storage_bucket.state.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.producer.email}"
+}
+
+# Workload Identity: lets the Kubernetes service account "producer" in namespace "grid"
+# act as sa-producer, with no key file.
+resource "google_service_account_iam_member" "producer_workload_identity" {
+  service_account_id = google_service_account.producer.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[grid/producer]"
+}

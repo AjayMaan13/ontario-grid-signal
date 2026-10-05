@@ -3,3 +3,8 @@
 data "google_storage_bucket" "raw" {
   name = "${var.project_id}-raw"
 }
+
+# Also created in infra/bootstrap. Holds the producer's checkpoint.
+data "google_storage_bucket" "state" {
+  name = "${var.project_id}-state"
+}

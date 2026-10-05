@@ -4,7 +4,7 @@ ZONE    = northamerica-northeast2-a
 
 STRIMZI_VERSION = 1.2.0
 
-.PHONY: up down test kafka-up kafka-test
+.PHONY: up down test kafka-up kafka-test producer-build producer-backfill producer-live
 
 # Create the cluster and point kubectl at it.
 up:
@@ -18,7 +18,7 @@ down:
 	./scripts/check_orphans.sh
 
 test:
-	uv run --with pytest --with jsonschema pytest
+	uv run --with pytest --with jsonschema --with confluent-kafka --with "testcontainers[kafka]" pytest
 
 # Install Strimzi (the Kafka operator), then the cluster and topics it manages.
 kafka-up:
@@ -35,3 +35,21 @@ kafka-test:
 		--image=quay.io/strimzi/kafka:$(STRIMZI_VERSION)-kafka-4.3.1 -- bash -c \
 		"echo hello-from-make | bin/kafka-console-producer.sh --bootstrap-server grid-kafka-kafka-bootstrap:9092 --topic grid.signals \
 		&& bin/kafka-console-consumer.sh --bootstrap-server grid-kafka-kafka-bootstrap:9092 --topic grid.signals --from-beginning --max-messages 1 --timeout-ms 20000"
+
+IMAGE = northamerica-northeast2-docker.pkg.dev/$(PROJECT)/grid/producer:latest
+
+# Build the producer image in Google Cloud Build and push it to Artifact Registry.
+producer-build:
+	gcloud builds submit . --tag $(IMAGE) --project $(PROJECT)
+
+# Replay the archived files into Kafka. Run before producer-live.
+producer-backfill:
+	kubectl apply -f k8s/producer/serviceaccount.yaml
+	kubectl -n grid delete job producer-backfill --ignore-not-found
+	kubectl apply -f k8s/producer/backfill-job.yaml
+	kubectl -n grid wait job/producer-backfill --for=condition=complete --timeout=1800s
+
+# Start the live producer (polls IESO every 10 minutes).
+producer-live:
+	kubectl apply -f k8s/producer/serviceaccount.yaml -f k8s/producer/deployment.yaml
+	kubectl -n grid rollout status deployment/producer

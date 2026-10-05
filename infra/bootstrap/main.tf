@@ -73,3 +73,20 @@ resource "google_artifact_registry_repository" "grid" {
     prevent_destroy = true
   }
 }
+
+# Small bucket for the producer's checkpoint (what it has already sent).
+# Separate from the raw bucket, so raw files stay write-once and the producer can only read them.
+resource "google_storage_bucket" "state" {
+  name                        = "${var.project_id}-state"
+  location                    = var.region
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+output "state_bucket_for_checkpoint" {
+  value = google_storage_bucket.state.name
+}
