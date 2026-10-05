@@ -20,8 +20,10 @@ Full plan: [Ontario-Grid-Signal-Build-Guide.md](Ontario-Grid-Signal-Build-Guide.
 |---|---|---|
 | 0 | Understand the data, parsers, schema design | Done — [docs/data-notes.md](docs/data-notes.md) |
 | 1 | Terraform (GKE, IAM, BigQuery) + hourly raw-file archiver | Done |
-| 2 | Kafka (Strimzi) on the cluster, topics declared in Git | Mostly done |
-| 3-8 | Producer, BigQuery sink, reconciliation, peak-risk signal, monitoring | Not started |
+| 2 | Kafka (Strimzi) on the cluster, topics declared in Git | Done |
+| 3 | Producer: IESO and the archive into Kafka, safe to restart | Done |
+| 4 | Consumer: Kafka into BigQuery (every version + latest), data-quality checks, replay from zero | Done |
+| 5-8 | Reconciliation, peak-risk signal, monitoring, load test | Not started |
 
 ## Layout
 
@@ -29,12 +31,17 @@ Full plan: [Ontario-Grid-Signal-Build-Guide.md](Ontario-Grid-Signal-Build-Guide.
 docs/           data notes and the 3 infra decisions (docs/decisions.md)
 sql/            BigQuery table design
 src/parsers/    turn raw IESO files into typed records (see tests/test_parsers.py)
+src/producer/   IESO or archive -> events -> Kafka, with a checkpoint so restarts send nothing twice
+src/consumer/   Kafka -> BigQuery (staging table + MERGE), and the data-quality checks
+schemas/        the JSON Schema every event must match
 archiver/       hourly job that copies IESO files into GCS before IESO deletes them
 infra/
   bootstrap/    Terraform state bucket, raw bucket, image registry (never destroyed)
   main/         the GKE cluster, network, service accounts, BigQuery dataset
   archiver/     the archiver's Cloud Run job + Cloud Scheduler trigger
 k8s/kafka/      Kafka cluster and topics (Strimzi custom resources)
+k8s/producer/   producer Deployment and backfill Job
+k8s/consumer/   consumer Deployment and replay Job
 tests/          pytest: parsers (golden files) and the archiver's listing parser
 ```
 
