@@ -4,7 +4,7 @@ ZONE    = northamerica-northeast2-a
 
 STRIMZI_VERSION = 1.2.0
 
-.PHONY: up down test kafka-up kafka-test kafka-count producer-build producer-backfill producer-live
+.PHONY: up down test kafka-up kafka-test kafka-count producer-build producer-backfill producer-live consumer-up consumer-replay bq-test bq-check bq-summary bq-reset
 
 # Create the cluster and point kubectl at it.
 up:
@@ -18,7 +18,7 @@ down:
 	./scripts/check_orphans.sh
 
 test:
-	uv run --with pytest --with jsonschema --with confluent-kafka --with "testcontainers[kafka]" pytest
+	uv run --with pytest --with jsonschema --with google-cloud-bigquery --with confluent-kafka --with "testcontainers[kafka]" pytest
 
 # Install Strimzi (the Kafka operator), then the cluster and topics it manages.
 kafka-up:
@@ -58,3 +58,34 @@ producer-live:
 kafka-count:
 	kubectl -n kafka run kafka-count --rm -i --restart=Never --image=quay.io/strimzi/kafka:$(STRIMZI_VERSION)-kafka-4.3.1 -- bash -c \
 		'for t in ieso.demand.ici ieso.demand.predispatch ieso.demand.realtime; do echo -n "$$t: "; bin/kafka-get-offsets.sh --bootstrap-server grid-kafka-kafka-bootstrap:9092 --topic $$t | awk -F: "{s+=\$$3} END{print s}"; done'
+
+# --- BigQuery sink ---
+BQ_PYTHON = PYTHONPATH=src uv run --quiet --with google-cloud-bigquery --with jsonschema python -m consumer.cli
+
+# Start the live consumer (group bq-sink).
+consumer-up:
+	kubectl apply -f k8s/consumer/serviceaccount.yaml -f k8s/consumer/deployment.yaml
+	kubectl -n grid rollout status deployment/consumer
+
+# Read every event again with a brand-new consumer group, then exit. See docs/data-notes or the plan for the full procedure.
+consumer-replay:
+	kubectl apply -f k8s/consumer/serviceaccount.yaml
+	kubectl -n grid delete job consumer-replay --ignore-not-found
+	sed "s/__GROUP__/replay-$$(date +%s)/" k8s/consumer/replay-job.yaml | kubectl apply -f -
+	kubectl -n grid wait job/consumer-replay --for=condition=complete --timeout=3600s
+
+# Row counts and a checksum of both tables (compare before and after a replay).
+bq-summary:
+	$(BQ_PYTHON) summary
+
+# The data-quality checks. Exits with an error if any check finds a violation.
+bq-check:
+	$(BQ_PYTHON) check
+
+# Empty both tables, for a clean replay.
+bq-reset:
+	$(BQ_PYTHON) reset
+
+# The MERGE statements and quality checks on real BigQuery, in a throwaway dataset (takes a few minutes).
+bq-test:
+	RUN_BQ_TESTS=1 uv run --with pytest --with jsonschema --with google-cloud-bigquery pytest tests/test_bigquery.py

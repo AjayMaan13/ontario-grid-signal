@@ -1,0 +1,27 @@
+# Reads every event from the start with a fresh consumer group (the Makefile fills in __GROUP__), then exits.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: consumer-replay
+  namespace: grid
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      serviceAccountName: consumer
+      restartPolicy: Never
+      containers:
+        - name: consumer
+          image: northamerica-northeast2-docker.pkg.dev/ontario-grid-signal/grid/producer:latest
+          command: ["python", "-m", "consumer.run"]
+          env:
+            - {name: KAFKA_BOOTSTRAP, value: "grid-kafka-kafka-bootstrap.kafka:9092"}
+            - {name: GCP_PROJECT, value: ontario-grid-signal}
+            - {name: GROUP_ID, value: __GROUP__}
+            - {name: BATCH_SIZE, value: "5000"}  # bigger batches: far fewer BigQuery jobs
+            - {name: FLUSH_SECONDS, value: "10"}
+            - {name: EXIT_WHEN_IDLE_SECONDS, value: "60"}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 512Mi}

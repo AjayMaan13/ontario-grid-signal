@@ -80,3 +80,11 @@ resource "google_service_account_iam_member" "producer_workload_identity" {
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.project_id}.svc.id.goog[grid/producer]"
 }
+
+# Workload Identity for the consumer: the Kubernetes service account "consumer" in namespace
+# "grid" acts as sa-consumer (which can edit the grid dataset and run BigQuery jobs).
+resource "google_service_account_iam_member" "consumer_workload_identity" {
+  service_account_id = google_service_account.consumer.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[grid/consumer]"
+}

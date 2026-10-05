@@ -1,0 +1,14 @@
+[
+  {"name": "report", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "measure", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "interval_start", "type": "TIMESTAMP", "mode": "REQUIRED"},
+  {"name": "zone", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "version", "type": "INTEGER", "mode": "REQUIRED"},
+  {"name": "value_mw", "type": "FLOAT", "mode": "REQUIRED"},
+  {"name": "published_at", "type": "TIMESTAMP", "mode": "REQUIRED"},
+  {"name": "ingested_at", "type": "TIMESTAMP", "mode": "REQUIRED"},
+  {"name": "loaded_at", "type": "TIMESTAMP", "mode": "REQUIRED"},
+  {"name": "source_uri", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "content_sha256", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "reason", "type": "STRING", "mode": "REQUIRED"}
+]

@@ -5,6 +5,5 @@ infra
 archiver
 docs
 k8s
-sql
 scripts
 *.md

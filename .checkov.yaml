@@ -16,3 +16,5 @@ skip-check:
   - CKV_GCP_78  # raw bucket versioning: raw files are never overwritten, so no history to keep
   - CKV_GCP_81  # BigQuery customer-managed keys: public data, Google-managed keys are fine
   - CKV_GCP_84  # Artifact Registry customer-managed keys: same
+  - CKV_GCP_80  # BigQuery table customer-managed keys: public data, Google-managed keys are fine
+  - CKV_GCP_121 # table deletion protection: off on purpose, the dataset is rebuilt on every make up

@@ -7,3 +7,36 @@ resource "google_bigquery_dataset" "grid" {
   # the raw files in the raw bucket. Without this, destroy fails once tables exist.
   delete_contents_on_destroy = true
 }
+
+# Both tables share one column list, kept in sql/demand_schema.json (the consumer loads with it too).
+locals {
+  demand_schema = file("${path.module}/../../sql/demand_schema.json")
+}
+
+# Append-only: every version of every interval.
+resource "google_bigquery_table" "raw_demand_versions" {
+  dataset_id          = google_bigquery_dataset.grid.dataset_id
+  table_id            = "raw_demand_versions"
+  schema              = local.demand_schema
+  clustering          = ["report", "zone"]
+  deletion_protection = false # the dataset is rebuilt on every make up
+
+  time_partitioning {
+    type  = "DAY"
+    field = "interval_start"
+  }
+}
+
+# Latest known value per interval, kept by MERGE.
+resource "google_bigquery_table" "current_demand" {
+  dataset_id          = google_bigquery_dataset.grid.dataset_id
+  table_id            = "current_demand"
+  schema              = local.demand_schema
+  clustering          = ["report", "zone"]
+  deletion_protection = false
+
+  time_partitioning {
+    type  = "DAY"
+    field = "interval_start"
+  }
+}

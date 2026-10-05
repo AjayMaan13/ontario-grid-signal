@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumer
+  namespace: grid
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: consumer}
+  template:
+    metadata:
+      labels: {app: consumer}
+    spec:
+      serviceAccountName: consumer
+      containers:
+        - name: consumer
+          image: northamerica-northeast2-docker.pkg.dev/ontario-grid-signal/grid/producer:latest  # one image, two programs
+          command: ["python", "-m", "consumer.run"]
+          env:
+            - {name: KAFKA_BOOTSTRAP, value: "grid-kafka-kafka-bootstrap.kafka:9092"}
+            - {name: GCP_PROJECT, value: ontario-grid-signal}
+            - {name: GROUP_ID, value: bq-sink}
+            - {name: BATCH_SIZE, value: "500"}
+            - {name: FLUSH_SECONDS, value: "60"}
+          resources:
+            requests: {cpu: 25m, memory: 128Mi}
+            limits: {memory: 256Mi}
