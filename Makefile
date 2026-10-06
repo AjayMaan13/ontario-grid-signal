@@ -148,3 +148,8 @@ signals-replay:
 # The live evaluator's latest decisions.
 bq-signals:
 	$(BQ_PYTHON) signals
+
+# Events held by each partition of each topic (partition:end offset). Shows whether a topic is spread or stuck on one.
+kafka-spread:
+	kubectl -n kafka run kafka-spread --rm -i --restart=Never --image=quay.io/strimzi/kafka:$(STRIMZI_VERSION)-kafka-4.3.1 -- bash -c \
+		'for t in ieso.demand.ici ieso.demand.predispatch ieso.demand.realtime; do echo "$$t"; bin/kafka-get-offsets.sh --bootstrap-server grid-kafka-kafka-bootstrap:9092 --topic $$t; done'

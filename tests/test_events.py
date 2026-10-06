@@ -44,7 +44,7 @@ def test_realtime_file_becomes_one_event_per_interval():
     assert events[0]["version"] == 12
     assert events[0]["published_at"] == "2026-09-28T12:54:48Z"
     assert topic_for(events[0]) == "ieso.demand.realtime"
-    assert key_for(events[0]) == "RealtimeTotals|ONTARIO"
+    assert key_for(events[0]) == "RealtimeTotals|ONTARIO|2026-09-28"
 
 
 def test_predispatch_events_say_they_are_total_load_not_demand():
@@ -149,3 +149,17 @@ def test_checkpoint_survives_being_saved_and_loaded():
     send(checkpoint, realtime_events())
     restored = Checkpoint.from_json(checkpoint.to_json())
     assert send(restored, realtime_events()) == []
+
+
+# ---- the Kafka key spreads days across partitions but keeps one interval's versions together ----
+
+def test_the_key_uses_iesos_est_delivery_date_not_the_utc_date():
+    late_evening = {**realtime_events()[0], "interval_start": "2026-09-29T03:00:00Z"}  # 22:00 EST on the 28th
+    assert key_for(late_evening) == "RealtimeTotals|ONTARIO|2026-09-28"
+
+
+def test_every_version_of_an_interval_has_the_same_key_and_other_days_differ():
+    first = realtime_events()[0]
+    assert key_for({**first, "version": 3}) == key_for({**first, "version": 9})
+    next_day = {**first, "interval_start": "2026-09-29T12:00:00Z"}
+    assert key_for(next_day) != key_for(first)

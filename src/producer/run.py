@@ -13,6 +13,7 @@ from parsers.predisp_totals import parse_predisp_totals_xml
 from parsers.realtime_totals import parse_realtime_totals
 from producer import store
 from producer.events import key_for, to_events, topic_for
+from observability.statsd import Statsd
 from producer.sources import sort_key
 
 PARSERS = {
@@ -30,10 +31,58 @@ def say(event, **fields):
     print(json.dumps({"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "event": event, **fields}), flush=True)
 
 
+class _EmittingCounter(Counter):
+    """A Counter that also reports every increase, so the code keeps writing `metrics.counts["x"] += 1`."""
+
+    def __init__(self, emit):
+        super().__init__()
+        self._emit = emit
+
+    def __setitem__(self, key, value):
+        delta = value - self.get(key, 0)
+        super().__setitem__(key, value)
+        if delta > 0:
+            self._emit(key, delta)
+
+
 class Metrics:
-    def __init__(self):
-        self.counts = Counter()
+    def __init__(self, statsd=None, prefix="app"):
+        self.statsd, self.prefix = statsd or Statsd(host=""), prefix
+        self.counts = _EmittingCounter(lambda name, delta: self.statsd.incr(f"{prefix}.{name}", delta))
         self.latencies = []  # seconds from IESO publishing a file to our event being delivered
+        self.newest_published = None  # IESO's publish time of the newest file seen: the data's age is measured from it
+        self._last_heartbeat = 0.0
+
+    def observe_latency(self, seconds):
+        self.latencies.append(seconds)
+        self.statsd.histogram(f"{self.prefix}.latency_s", seconds)
+
+    def see_published(self, when):
+        self.newest_published = when if self.newest_published is None else max(self.newest_published, when)
+
+    def heartbeat(self, consumer=None, every=15):
+        """Gauges that must keep arriving even when nothing else happens: how old the newest data is, and the consumer's lag.
+
+        If the data stops coming, the age keeps growing, which is what a freshness alert needs to see.
+        """
+        now = time.monotonic()
+        if now - self._last_heartbeat < every:
+            return
+        self._last_heartbeat = now
+        try:
+            if self.newest_published is not None:
+                self.statsd.gauge(f"{self.prefix}.data_age_s", (datetime.now(timezone.utc) - self.newest_published).total_seconds())
+            if consumer is not None and hasattr(consumer, "assignment"):
+                total = 0
+                for partition in consumer.assignment():
+                    low, high = consumer.get_watermark_offsets(partition, cached=False)
+                    position = consumer.position([partition])[0].offset
+                    lag = max(0, high - position) if position >= 0 else high - low
+                    total += lag
+                    self.statsd.gauge(f"{self.prefix}.lag", lag, [f"topic:{partition.topic}", f"partition:{partition.partition}"])
+                self.statsd.gauge(f"{self.prefix}.lag_total", total)
+        except Exception:  # noqa: BLE001 - a metrics problem must never stop the pipeline
+            pass
 
     def summary(self):
         out = dict(self.counts)
@@ -81,7 +130,8 @@ def process_file(source, report, file, checkpoint, producer, reason, metrics):
     metrics.counts["events_produced"] += len(fresh)
     metrics.counts["events_deduplicated"] += len(events) - len(fresh)
     if reason == "live":
-        metrics.latencies += [(datetime.now(timezone.utc) - file.published_at).total_seconds()] * len(fresh)
+        for _ in fresh:
+            metrics.observe_latency((datetime.now(timezone.utc) - file.published_at).total_seconds())
     return True
 
 
@@ -90,6 +140,7 @@ def run_once(source, checkpoint, checkpoint_uri, producer, reason, metrics):
     for report in PARSERS:
         files = sorted(source.list_files(report), key=sort_key)
         for file in files:
+            metrics.see_published(file.published_at)
             metrics.counts["files_seen"] += 1
             if process_file(source, report, file, checkpoint, producer, reason, metrics):
                 since_save += 1
@@ -108,10 +159,11 @@ def main():
     producer = Producer({"bootstrap.servers": os.environ["KAFKA_BOOTSTRAP"], "enable.idempotence": True, "acks": "all"})
     checkpoint = store.load(uri)
 
+    statsd = Statsd(tags=["service:producer"])
     if mode == "backfill":
         from producer.sources import GCSSource
 
-        metrics = Metrics()
+        metrics = Metrics(statsd, "producer")
         run_once(GCSSource(os.environ["RAW_BUCKET"]), checkpoint, uri, producer, "backfill", metrics)
         say("backfill_done", **metrics.summary())
         return
@@ -119,11 +171,19 @@ def main():
     from producer.sources import IESOSource
 
     source = IESOSource(int(os.environ.get("LOOKBACK_HOURS", "48")))
+    newest = None
     while True:
-        metrics = Metrics()
+        metrics = Metrics(statsd, "producer")
         run_once(source, checkpoint, uri, producer, "live", metrics)
         say("cycle_done", **metrics.summary())
-        time.sleep(int(os.environ.get("POLL_SECONDS", "600")))  # IESO's listing is 1.6 MB: be polite
+        statsd.incr("producer.cycles")
+        if metrics.newest_published:
+            newest = max(newest or metrics.newest_published, metrics.newest_published)
+        wait_until = time.monotonic() + int(os.environ.get("POLL_SECONDS", "600"))  # IESO's listing is 1.6 MB: be polite
+        while time.monotonic() < wait_until:
+            if newest:  # keeps arriving while we wait, so a stalled producer shows as a growing age
+                statsd.gauge("producer.data_age_s", (datetime.now(timezone.utc) - newest).total_seconds())
+            time.sleep(15)
 
 
 if __name__ == "__main__":

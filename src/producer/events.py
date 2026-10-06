@@ -3,6 +3,8 @@ import json
 import re
 from datetime import datetime, timezone
 
+from parsers.common import EST
+
 SCHEMA_VERSION = 1
 ZONE = "ONTARIO"
 
@@ -64,4 +66,11 @@ def topic_for(event: dict) -> str:
 
 
 def key_for(event: dict) -> str:
-    return f"{event['report']}|{event['zone']}"
+    """report|zone|delivery date (EST).
+
+    Every version of one interval has the same key, so versions stay in order on one partition, while different days
+    spread across partitions. A key of report|zone alone put a whole topic on a single partition (one zone only), which
+    leaves nothing for extra consumers to share.
+    """
+    start = datetime.strptime(event["interval_start"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    return f"{event['report']}|{event['zone']}|{start.astimezone(EST).date()}"

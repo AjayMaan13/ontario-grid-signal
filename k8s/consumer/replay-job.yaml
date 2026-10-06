@@ -16,6 +16,7 @@ spec:
           image: northamerica-northeast2-docker.pkg.dev/ontario-grid-signal/grid/producer:latest
           command: ["python", "-m", "consumer.run"]
           env:
+            - {name: DD_AGENT_HOST, valueFrom: {fieldRef: {fieldPath: status.hostIP}}}
             - {name: KAFKA_BOOTSTRAP, value: "grid-kafka-kafka-bootstrap.kafka:9092"}
             - {name: GCP_PROJECT, value: ontario-grid-signal}
             - {name: GROUP_ID, value: __GROUP__}

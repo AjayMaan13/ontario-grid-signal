@@ -107,10 +107,11 @@ def test_if_kafka_does_not_confirm_nothing_is_remembered_and_nothing_is_lost(tmp
     assert len(retry.sent) == 8796
 
 
-def test_events_are_sent_with_the_series_key_so_versions_stay_in_order(tmp_path):
+def test_events_are_sent_with_the_series_and_day_key_so_versions_of_an_interval_stay_in_order(tmp_path):
     producer = FakeProducer()
     run(make_archive(tmp_path), tmp_path / "cp.json", producer)
-    assert {key for topic, key, _ in producer.sent if topic == "ieso.demand.realtime"} == {"RealtimeTotals|ONTARIO"}
+    assert {key for topic, key, _ in producer.sent if topic == "ieso.demand.realtime"} == {"RealtimeTotals|ONTARIO|2026-09-28"}
+    assert len({key for topic, key, _ in producer.sent if topic == "ieso.demand.ici"}) == 365  # one key per day of the 2022 base period
 
 
 def test_live_runs_record_how_long_after_publishing_each_event_left(tmp_path):

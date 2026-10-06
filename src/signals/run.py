@@ -9,6 +9,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from consumer.run import decode
+from observability.statsd import Statsd
 from producer.run import say
 from signals.live import evaluate, load_params
 from signals.series import Series
@@ -43,6 +44,7 @@ def main():
     consumer = Consumer({"bootstrap.servers": os.environ["KAFKA_BOOTSTRAP"], "group.id": "signal-eval", "enable.auto.commit": False, "auto.offset.reset": "earliest"})
     consumer.subscribe(["ieso.demand.ici"])
 
+    statsd = Statsd(tags=["service:signals"])
     points, flagged = {}, 0
     while True:
         message = consumer.poll(1.0)
@@ -61,6 +63,8 @@ def main():
             producer.produce("grid.signals", key=row["variant"], value=json.dumps(row).encode())
         producer.flush(30)
         flagged += sum(row["risk"] for row in rows)
+        statsd.incr("signals.rows_written", len(rows))
+        statsd.incr("signals.at_risk", sum(row["risk"] for row in rows))
         say("signals_written", rows=len(rows), at_risk=sum(row["risk"] for row in rows), flagged_total=flagged, history_hours=len(points))
 
 

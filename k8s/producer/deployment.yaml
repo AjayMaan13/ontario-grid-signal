@@ -18,6 +18,7 @@ spec:
         - name: producer
           image: northamerica-northeast2-docker.pkg.dev/ontario-grid-signal/grid/producer:latest
           env:
+            - {name: DD_AGENT_HOST, valueFrom: {fieldRef: {fieldPath: status.hostIP}}}
             - {name: MODE, value: live}
             - {name: KAFKA_BOOTSTRAP, value: "grid-kafka-kafka-bootstrap.kafka:9092"}
             - {name: CHECKPOINT_URI, value: "gs://ontario-grid-signal-state/producer/checkpoint.json"}

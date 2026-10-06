@@ -16,6 +16,7 @@ spec:
         - name: producer
           image: northamerica-northeast2-docker.pkg.dev/ontario-grid-signal/grid/producer:latest
           env:
+            - {name: DD_AGENT_HOST, valueFrom: {fieldRef: {fieldPath: status.hostIP}}}
             - {name: MODE, value: backfill}
             - {name: KAFKA_BOOTSTRAP, value: "grid-kafka-kafka-bootstrap.kafka:9092"}
             - {name: RAW_BUCKET, value: ontario-grid-signal-raw}

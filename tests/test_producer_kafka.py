@@ -73,8 +73,12 @@ def test_producer_sends_keyed_valid_events_and_a_second_run_adds_nothing(bootstr
     for topic, count in EXPECTED.items():
         messages = read_all(bootstrap, topic, count)
         assert len(messages) == count
-        assert len({m.key() for m in messages}) == 1  # one series, one key
-        assert len({m.partition() for m in messages}) == 1  # the same key always lands in the same partition
+        partitions_of = {}
+        for m in messages:
+            partitions_of.setdefault(m.key(), set()).add(m.partition())
+        assert all(len(p) == 1 for p in partitions_of.values())  # the same key always lands in the same partition
+        if topic == "ieso.demand.ici":  # 365 days of keys: the topic is shared across partitions, not stuck on one
+            assert len(partitions_of) == 365 and len({m.partition() for m in messages}) > 1
         for message in messages:
             VALIDATOR.validate(json.loads(message.value()))  # payload matches the schema
 

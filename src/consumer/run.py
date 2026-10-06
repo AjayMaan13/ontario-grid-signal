@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from jsonschema import ValidationError
 
+from observability.statsd import Statsd
 from producer.run import VALIDATOR, Metrics, say
 
 TOPICS = ["ieso.demand.realtime", "ieso.demand.predispatch", "ieso.demand.ici"]
@@ -30,7 +31,9 @@ def _flush(batch, write, consumer, metrics):
     for event in batch:
         if event["reason"] == "live":  # backfilled events are old by definition, so they say nothing about latency
             published = datetime.strptime(event["published_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-            metrics.latencies.append((now - published).total_seconds())
+            metrics.observe_latency((now - published).total_seconds())
+    metrics.see_published(datetime.strptime(max(e["published_at"] for e in batch), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc))
+    metrics.statsd.histogram(f"{metrics.prefix}.batch_seconds", time.monotonic() - started)
     say("batch_written", events=len(batch), seconds=round(time.monotonic() - started, 1), **metrics.summary())  # running totals, with latency p50/p95 for live events
 
 
@@ -42,6 +45,7 @@ def run_loop(consumer, write, batch_size, flush_seconds, metrics, exit_when_idle
     batch, first_at, last_message_at = [], None, time.monotonic()
     while True:
         message = consumer.poll(1.0)
+        metrics.heartbeat(consumer)
         now = time.monotonic()
         if message is not None:
             if message.error():
@@ -78,7 +82,7 @@ def main():
     })
     consumer.subscribe(TOPICS)
 
-    metrics, started = Metrics(), time.monotonic()
+    metrics, started = Metrics(Statsd(tags=["service:consumer"]), "consumer"), time.monotonic()
     run_loop(consumer, lambda events: write_batch(client, dataset, events),
              int(os.environ.get("BATCH_SIZE", "500")), float(os.environ.get("FLUSH_SECONDS", "60")), metrics,
              float(os.environ.get("EXIT_WHEN_IDLE_SECONDS", "0")))
