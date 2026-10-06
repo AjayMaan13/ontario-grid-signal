@@ -75,3 +75,10 @@ workers:
   celery:
     persistence:
       enabled: false
+
+# The database-migration and create-user jobs normally run as Helm "hooks", which Helm starts only AFTER
+# `--wait` finishes. But the pods wait for the migration, so --wait and hooks deadlock. Run them as plain jobs.
+migrateDatabaseJob:
+  useHelmHooks: false
+createUserJob:
+  useHelmHooks: false
