@@ -4,6 +4,7 @@ RUN pip install --no-cache-dir "confluent-kafka==2.*" "jsonschema==4.*" "google-
 COPY src/ src/
 COPY schemas/ schemas/
 COPY sql/ sql/
+COPY backtest/results.json backtest/results.json
 RUN useradd --create-home producer
 USER producer
 ENV PYTHONPATH=/app/src

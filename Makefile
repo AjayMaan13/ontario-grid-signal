@@ -134,3 +134,17 @@ bq-runs:
 # Walk-forward backtest: tune on 2022-23, score 2024-25 once, write backtest/results.json. Runs offline in seconds.
 backtest:
 	PYTHONPATH=src uv run --quiet python -m signals.backtest
+
+# --- live signal evaluator ---
+# Start it (needs the Terraform apply for its table and account first).
+signals-up:
+	kubectl apply -f k8s/signals/serviceaccount.yaml -f k8s/signals/deployment.yaml
+	kubectl -n grid rollout status deployment/signals
+
+# What would the live rule have flagged around a real past day?  make signals-replay DAY=2025-06-24
+signals-replay:
+	PYTHONPATH=src uv run --quiet python -m signals.replay $(DAY)
+
+# The live evaluator's latest decisions.
+bq-signals:
+	$(BQ_PYTHON) signals

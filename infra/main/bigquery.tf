@@ -48,3 +48,11 @@ resource "google_bigquery_table" "reconciliation_runs" {
   schema              = file("${path.module}/../../sql/reconciliation_runs_schema.json")
   deletion_protection = false
 }
+
+# What the live evaluator decided, hour by hour (see src/signals).
+resource "google_bigquery_table" "signals" {
+  dataset_id          = google_bigquery_dataset.grid.dataset_id
+  table_id            = "signals"
+  schema              = file("${path.module}/../../sql/signals_schema.json")
+  deletion_protection = false
+}

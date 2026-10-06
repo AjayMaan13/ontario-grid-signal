@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signals
+  namespace: grid
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: signals}
+  template:
+    metadata:
+      labels: {app: signals}
+    spec:
+      serviceAccountName: signals
+      containers:
+        - name: signals
+          image: northamerica-northeast2-docker.pkg.dev/ontario-grid-signal/grid/producer:latest  # one image, several programs
+          command: ["python", "-m", "signals.run"]
+          env:
+            - {name: KAFKA_BOOTSTRAP, value: "grid-kafka-kafka-bootstrap.kafka:9092"}
+            - {name: GCP_PROJECT, value: ontario-grid-signal}
+            - {name: BQ_DATASET, value: grid}
+          resources:
+            requests: {cpu: 25m, memory: 128Mi}
+            limits: {memory: 256Mi}

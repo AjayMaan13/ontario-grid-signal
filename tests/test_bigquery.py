@@ -14,10 +14,12 @@ from google.cloud import bigquery  # noqa: E402
 from consumer import quality  # noqa: E402
 from consumer.bq import SCHEMA, write_batch  # noqa: E402
 from reconcile.steps import RUN_SCHEMA, landed_count, record_run  # noqa: E402
+from signals.live import evaluate, load_params  # noqa: E402
+from signals.sink import SCHEMA as SIGNAL_SCHEMA, write_signals  # noqa: E402
 
 pytestmark = pytest.mark.skipif(not os.environ.get("RUN_BQ_TESTS"), reason="set RUN_BQ_TESTS=1 (make bq-test) to run against real BigQuery")
 PROJECT, LOCATION = "ontario-grid-signal", "northamerica-northeast2"
-TABLES = ("raw_demand_versions", "current_demand", "reconciliation_runs")
+TABLES = ("raw_demand_versions", "current_demand", "reconciliation_runs", "signals")
 
 
 @pytest.fixture(scope="module")
@@ -37,6 +39,7 @@ def dataset(client):
         t.clustering_fields = ["report", "zone"]
         client.create_table(t)
     client.create_table(bigquery.Table(f"{PROJECT}.{name}.reconciliation_runs", schema=RUN_SCHEMA))
+    client.create_table(bigquery.Table(f"{PROJECT}.{name}.signals", schema=SIGNAL_SCHEMA))
     yield name
     client.delete_dataset(f"{PROJECT}.{name}", delete_contents=True, not_found_ok=True)
 
@@ -174,3 +177,20 @@ def test_running_the_same_interval_again_replaces_its_row_not_adds_one(client, d
     record_run(client, dataset, run_row(key_="2026-10-06T08:00:00+00:00"))
     rows = [dict(r) for r in client.query(f"SELECT run_key, events_sent FROM `{PROJECT}.{dataset}.reconciliation_runs` ORDER BY run_key").result()]
     assert rows == [{"run_key": "2026-10-05T08:00:00+00:00", "events_sent": 0}, {"run_key": "2026-10-06T08:00:00+00:00", "events_sent": 12}]
+
+
+# ---- live signals: written once, even when sent twice ----
+
+def test_signal_rows_are_written_once_even_if_the_same_decisions_are_sent_again(client, dataset):
+    from datetime import datetime, timedelta, timezone
+
+    from signals import groundtruth
+
+    series = groundtruth.load_series(2025)
+    latest = datetime(2025, 6, 24, 4, tzinfo=timezone.utc)  # 23 Jun, hour-ending 24 in EST: also triggers the day-ahead decisions
+    rows = evaluate(series, latest, load_params(), datetime(2025, 6, 24, 5, 15, tzinfo=timezone.utc))
+    assert len(rows) > 2
+    write_signals(client, dataset, rows)
+    write_signals(client, dataset, rows)  # a restart replays recent hours and sends them again
+    count = list(client.query(f"SELECT COUNT(*) FROM `{PROJECT}.{dataset}.signals`").result())[0][0]
+    assert count == len(rows)

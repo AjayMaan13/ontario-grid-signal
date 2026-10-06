@@ -60,6 +60,7 @@ resource "google_project_iam_member" "bq_jobs" {
   for_each = {
     consumer = google_service_account.consumer.email
     airflow  = google_service_account.airflow.email
+    signals  = google_service_account.signals.email
   }
   project = var.project_id
   role    = "roles/bigquery.jobUser"
@@ -102,4 +103,21 @@ resource "google_service_account_iam_member" "airflow_workload_identity" {
   service_account_id = google_service_account.airflow.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.project_id}.svc.id.goog[airflow/airflow]"
+}
+
+# signals: the live evaluator. It reads Kafka (no Google permission needed) and writes the signals table.
+resource "google_service_account" "signals" {
+  account_id = "sa-signals"
+}
+
+resource "google_bigquery_dataset_iam_member" "signals" {
+  dataset_id = google_bigquery_dataset.grid.dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${google_service_account.signals.email}"
+}
+
+resource "google_service_account_iam_member" "signals_workload_identity" {
+  service_account_id = google_service_account.signals.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[grid/signals]"
 }
