@@ -18,7 +18,7 @@ down:
 	./scripts/check_orphans.sh
 
 test:
-	uv run --with pytest --with jsonschema --with google-cloud-bigquery --with confluent-kafka --with "testcontainers[kafka]" pytest
+	uv run --with pytest --with jsonschema --with google-cloud-bigquery --with hypothesis --with confluent-kafka --with "testcontainers[kafka]" pytest
 
 # Install Strimzi (the Kafka operator), then the cluster and topics it manages.
 kafka-up:
@@ -130,3 +130,7 @@ dag-test:
 # What each reconciliation run found (one row per run).
 bq-runs:
 	$(BQ_PYTHON) runs
+
+# Walk-forward backtest: tune on 2022-23, score 2024-25 once, write backtest/results.json. Runs offline in seconds.
+backtest:
+	PYTHONPATH=src uv run --quiet python -m signals.backtest

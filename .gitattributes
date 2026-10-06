@@ -3,3 +3,6 @@
 
 # Real IESO files must stay byte-for-byte (no line-ending rewrite).
 tests/fixtures/** -text
+
+# Frozen backtest inputs must stay byte-for-byte.
+backtest/data/** -text
