@@ -84,20 +84,52 @@ def test_the_heartbeat_reports_the_lag_of_every_partition_the_consumer_owns():
             self.topic, self.partition, self.offset = "ieso.demand.ici", partition, offset
 
     class LaggingConsumer:
+        POSITION = {0: 70, 1: -1001, 2: -1001}   # -1001: nothing fetched from this partition yet (just assigned)
+        COMMITTED = {0: 70, 1: 25, 2: -1001}     # partition 1 was committed by a previous owner; partition 2 never was
+
         def assignment(self):
-            return [Partition(0), Partition(1)]
+            return [Partition(0), Partition(1), Partition(2)]
 
         def get_watermark_offsets(self, partition, cached):
-            return 0, {0: 100, 1: 40}[partition.partition]
+            return 0, {0: 100, 1: 40, 2: 10}[partition.partition]
 
         def position(self, partitions):
-            return [Partition(partitions[0].partition, offset={0: 70, 1: -1001}[partitions[0].partition])]  # -1001: no position yet
+            return [Partition(partitions[0].partition, offset=self.POSITION[partitions[0].partition])]
+
+        def committed(self, partitions, timeout):
+            return [Partition(partitions[0].partition, offset=self.COMMITTED[partitions[0].partition])]
 
     recording = RecordingStatsd()
     Metrics(recording, "consumer").heartbeat(LaggingConsumer())
     lags = {c[3][1]: c[2] for c in recording.named("consumer.lag")}
-    assert lags == {"partition:0": 30, "partition:1": 40}  # 100-70, and with no position yet the whole 40
-    assert recording.named("consumer.lag_total")[0][2] == 70
+    # 0: position known, 100-70. 1: position unknown, so use what was committed, 40-25.
+    # 2: nothing committed either, so the whole partition really is unread.
+    assert lags == {"partition:0": 30, "partition:1": 15, "partition:2": 10}
+    assert recording.named("consumer.lag_total")[0][2] == 55
+
+
+def test_a_consumer_caught_up_but_just_given_a_partition_does_not_report_that_partition_as_lag():
+    """The false alert: after a scale-in the consumer owns partitions it has not fetched from, and everything is committed."""
+    class Partition:
+        def __init__(self, partition, offset=0):
+            self.topic, self.partition, self.offset = "ieso.demand.ici", partition, offset
+
+    class CaughtUp:
+        def assignment(self):
+            return [Partition(0), Partition(1)]
+
+        def get_watermark_offsets(self, partition, cached):
+            return 0, 6806
+
+        def position(self, partitions):
+            return [Partition(partitions[0].partition, offset=-1001)]
+
+        def committed(self, partitions, timeout):
+            return [Partition(partitions[0].partition, offset=6806)]
+
+    recording = RecordingStatsd()
+    Metrics(recording, "consumer").heartbeat(CaughtUp())
+    assert recording.named("consumer.lag_total")[0][2] == 0
 
 
 def test_a_broken_consumer_never_stops_the_heartbeat_or_the_pipeline():

@@ -33,3 +33,7 @@ A replay from zero makes data age look stale until the replay reaches recent dat
 | Lag | rewind the consumer group (the load test does this) | it fires after about 5 minutes of lag |
 | Freshness | `kubectl -n grid scale deployment producer --replicas=0`, with `freshness_minutes=10` | fires after about 10 to 15 minutes; scale back up and restore 90 |
 | Producer errors | put 5 malformed files in the raw bucket and run the backfill job | fires; delete the files |
+
+## Lessons from testing the alerts
+
+- The lag gauge originally reported a whole partition as lag when the consumer had not fetched from it yet, which happens right after a scale-in. That raised a false "consumer is falling behind" alert while Kafka's own lag was 0. The gauge now uses the group's committed offset when the position is unknown (see `Metrics.heartbeat` and its tests). Compare `grid.consumer.lag_total` with `kafka.consumer_lag` (Datadog's own check) when in doubt: they should agree.

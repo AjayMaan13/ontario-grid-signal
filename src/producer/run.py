@@ -78,7 +78,13 @@ class Metrics:
                 for partition in consumer.assignment():
                     low, high = consumer.get_watermark_offsets(partition, cached=False)
                     position = consumer.position([partition])[0].offset
-                    lag = max(0, high - position) if position >= 0 else high - low
+                    if position < 0:
+                        # Nothing fetched from this partition yet (just assigned, for example after a scale-in): the position
+                        # is unknown, but the group's committed offset is not. Counting the whole partition as lag was a bug
+                        # that raised a false alert.
+                        committed = consumer.committed([partition], timeout=5)[0].offset
+                        position = committed if committed >= 0 else low
+                    lag = max(0, high - position)
                     total += lag
                     self.statsd.gauge(f"{self.prefix}.lag", lag, [f"topic:{partition.topic}", f"partition:{partition.partition}"])
                 self.statsd.gauge(f"{self.prefix}.lag_total", total)
