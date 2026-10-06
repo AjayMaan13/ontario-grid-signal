@@ -30,6 +30,7 @@ Numbers from real runs on the real cluster, with the date they were taken. Nothi
 | Seeded test result | Both tables identical before and after: 57,782 raw rows and 51,149 current rows, same checksums | 6 Oct 2026 |
 | Time to detect and fix | About 80 seconds from run start to the summary row (most of it the consumer's 60-second batch wait) | 6 Oct 2026 |
 | Fastest healthy run | 5 tasks in about 27 seconds when there was nothing to fix | 6 Oct 2026 |
+| Full run with data-quality task | 6 tasks, all green, in about 24 seconds; `check_data_quality` found 0 violations after the repair | 6 Oct 2026 |
 
 ## Problems met and what they taught
 
