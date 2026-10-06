@@ -68,13 +68,16 @@ postgresql:
     persistence:
       size: 5Gi
 
-# With LocalExecutor the scheduler would otherwise claim a 100 GB disk for logs. Logs live in the pod only.
+# With LocalExecutor, task logs live on the scheduler's own disk and the screen fetches them from that pod by name.
+# That only works if the scheduler is a StatefulSet (a stable name), which needs a disk. The default is 100 GB: use 2 GB.
 workers:
   persistence:
-    enabled: false
+    enabled: true
+    size: 2Gi
   celery:
     persistence:
-      enabled: false
+      enabled: true
+      size: 2Gi
 
 # The database-migration and create-user jobs normally run as Helm "hooks", which Helm starts only AFTER
 # `--wait` finishes. But the pods wait for the migration, so --wait and hooks deadlock. Run them as plain jobs.
