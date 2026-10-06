@@ -180,3 +180,7 @@ loadtest-baseline:
 	./scripts/loadtest.sh baseline
 loadtest-scaled:
 	./scripts/loadtest.sh scaled
+
+# How far behind the BigQuery consumer is (counts partitions it has not started yet). 0 means caught up.
+kafka-lag:
+	./scripts/loadtest.sh lag
