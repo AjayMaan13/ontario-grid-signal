@@ -14,7 +14,7 @@ Some checks below used extra files that were downloaded temporarily and are not 
 | 5 | ETag / Last-Modified | **Both supported**, and `If-Modified-Since` returns **304**. Polling can be a cheap conditional GET. | `curl -I`, then `curl -I -H "If-Modified-Since: ..."`. |
 | 6 | Retention | RealtimeTotals: about **31 days** of all versions. PredispTotals: all versions for only about **11 days** (from 17 Sep); older days keep the base file and last version only. The guide's "about a month" is wrong for PredispTotals. | Directory listings. |
 | 7 | Is PredispTotals still publishing? | Yes. `_v14` for 28 Sep was published 09:11 EST. | Listing. |
-| 8 | Airflow chart version, BigQuery quotas | **Not checked yet** (Weekend 5 / 4 topics). | |
+| 8 | Airflow chart version, BigQuery quotas | **Chart 1.22.0, which ships Airflow 3.2.2** (needs Kubernetes 1.30+ and Helm 3.19+). **BigQuery limits how fast a single table may be changed**: two writes per run to one small table, with runs overlapping, returned `429 Exceeded rate limits: too many table update operations for this table`. Batch writes, or use one `MERGE`. | Checked 6 Oct 2026 against the chart and a real failure; see docs/results.md. |
 
 ## Things the guide got wrong or missed
 
