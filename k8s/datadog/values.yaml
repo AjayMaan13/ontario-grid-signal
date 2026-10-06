@@ -19,6 +19,7 @@ datadog:
   kubeStateMetricsEnabled: false
   kubeStateMetricsCore: {enabled: false}
   collectEvents: false
+  discovery: {enabled: false}  # auto-enabled on new agents; it needs the system-probe container, which cannot start on this node image
   operator: {enabled: false}  # the chart adds a Datadog Operator pod by default; we only need the node agents
 clusterAgent:
   enabled: false
