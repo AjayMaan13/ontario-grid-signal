@@ -102,7 +102,7 @@ airflow-up:
 	helm upgrade --install airflow apache-airflow/airflow --namespace airflow --create-namespace --version 1.22.0 \
 		-f k8s/airflow/values.yaml
 	kubectl -n airflow rollout status deployment/airflow-api-server --timeout=15m
-	kubectl -n airflow rollout status deployment/airflow-scheduler --timeout=15m
+	kubectl -n airflow rollout status statefulset/airflow-scheduler --timeout=15m
 
 # Opens the Airflow screen on this Mac. Leave it running; login admin / admin.
 airflow-ui:

@@ -1,6 +1,7 @@
 """What each task of the nightly DAG does. The DAG file only wires these together."""
 import json
 import re
+from datetime import datetime
 from email.utils import format_datetime
 from pathlib import Path
 
@@ -103,9 +104,24 @@ def landed_count(client, dataset, events) -> int:
 
 # ---- 5. write the run summary ----
 
+_PARAM_TYPE = {"INTEGER": "INT64", "STRING": "STRING", "TIMESTAMP": "TIMESTAMP"}
+
+
 def record_run(client, dataset, row: dict):
-    """One row per run. Running the same interval again replaces its row."""
+    """One row per run, written with a single MERGE: running the same interval again replaces its row.
+
+    One statement, not delete-then-load: BigQuery limits how fast one table may change, and two writes per run
+    tripped that limit when runs overlapped. A single query job is also retried automatically on a rate limit.
+    """
     table = f"{client.project}.{dataset}.reconciliation_runs"
-    client.query(f"DELETE FROM `{table}` WHERE run_key = @key",
-                 job_config=bigquery.QueryJobConfig(query_parameters=[bigquery.ScalarQueryParameter("key", "STRING", row["run_key"])])).result()
-    client.load_table_from_json([row], table, job_config=bigquery.LoadJobConfig(schema=RUN_SCHEMA, write_disposition="WRITE_APPEND")).result()
+    params, selected = [], []
+    for field in RUN_SCHEMA:
+        value = row[field.name]
+        if field.field_type == "TIMESTAMP":
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        params.append(bigquery.ScalarQueryParameter(field.name, _PARAM_TYPE[field.field_type], value))
+        selected.append(f"@{field.name} AS {field.name}")
+    updates = ", ".join(f"{f.name} = S.{f.name}" for f in RUN_SCHEMA if f.name != "run_key")
+    sql = (f"MERGE `{table}` T USING (SELECT {', '.join(selected)}) S ON T.run_key = S.run_key "
+           f"WHEN MATCHED THEN UPDATE SET {updates} WHEN NOT MATCHED THEN INSERT ROW")
+    client.query(sql, job_config=bigquery.QueryJobConfig(query_parameters=params)).result()

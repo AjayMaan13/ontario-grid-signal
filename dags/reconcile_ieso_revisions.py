@@ -75,7 +75,7 @@ def reconcile_ieso_revisions():
         return PokeReturnValue(is_done=done, xcom_value=done)
 
     @task(trigger_rule="all_done")  # record the run even when the check above timed out
-    def record_run_summary(found, result, landed):
+    def record_run_summary(found, result, landed, data_interval_start=None, data_interval_end=None):
         from google.cloud import bigquery
 
         from producer import store
@@ -83,6 +83,8 @@ def reconcile_ieso_revisions():
         from reconcile.steps import record_run
 
         found, result = found or {}, result or {}
+        # If an earlier task failed there is no "found", but the run must still leave a row: use the run's own interval.
+        start, end = found.get("interval_start") or data_interval_start.isoformat(), found.get("interval_end") or data_interval_end.isoformat()
         changes = found.get("changes", [])
         by_kind = {kind: sum(c["kind"] == kind for c in changes) for kind in ("new_group", "new_version")}
         ok = bool(landed) and not result.get("failed")
@@ -93,8 +95,7 @@ def reconcile_ieso_revisions():
             store.save(os.environ["HANDLED_URI"], handled)
         client = bigquery.Client(project=os.environ["GCP_PROJECT"])
         record_run(client, os.environ.get("BQ_DATASET", "grid"), {
-            "run_key": found.get("interval_start", "unknown"),
-            "data_interval_start": found.get("interval_start"), "data_interval_end": found.get("interval_end"),
+            "run_key": start, "data_interval_start": start, "data_interval_end": end,
             "listed_files": sum(found.get("listed", {}).values()),
             "new_group_files": by_kind["new_group"], "new_version_files": by_kind["new_version"],
             "files_processed": len(result.get("processed", [])), "files_failed": len(result.get("failed", [])),
