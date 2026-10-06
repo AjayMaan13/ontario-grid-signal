@@ -17,7 +17,7 @@ jobs:
       - run: terraform fmt -check -recursive infra
       - name: validate each config
         run: |
-          for dir in infra/bootstrap infra/main infra/archiver; do
+          for dir in infra/bootstrap infra/main infra/archiver infra/datadog; do
             terraform -chdir=$dir init -backend=false -input=false
             terraform -chdir=$dir validate
           done

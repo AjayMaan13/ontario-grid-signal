@@ -1,0 +1,30 @@
+# Datadog agent, as small as it can be: the nodes have little spare CPU and the agent runs on every one of them.
+# Install: make datadog-secret && make datadog-up   (needs DD_API_KEY and DD_SITE in your environment)
+datadog:
+  apiKeyExistingSecret: datadog-secret  # created from your environment by make datadog-secret; never stored in a file
+  clusterName: grid-signal
+  tags: ["env:dev", "project:grid-signal"]
+  dogstatsd:
+    useHostPort: true  # our pods send metrics to their node's agent on port 8125 (DD_AGENT_HOST = node IP)
+    nonLocalTraffic: true
+  # features we do not use
+  apm: {portEnabled: false, socketEnabled: false}
+  logs: {enabled: false}
+  processAgent: {enabled: false, processCollection: false}
+  networkMonitoring: {enabled: false}
+  securityAgent:
+    runtime: {enabled: false}
+    compliance: {enabled: false}
+  orchestratorExplorer: {enabled: false}
+  kubeStateMetricsEnabled: false
+  kubeStateMetricsCore: {enabled: false}
+  collectEvents: false
+  operator: {enabled: false}  # the chart adds a Datadog Operator pod by default; we only need the node agents
+clusterAgent:
+  enabled: false
+agents:
+  containers:
+    agent:
+      resources:
+        requests: {cpu: 20m, memory: 128Mi}
+        limits: {memory: 320Mi}

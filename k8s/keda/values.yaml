@@ -1,0 +1,11 @@
+# KEDA: small. Three pods (operator, metrics server, admission webhooks).
+resources:
+  operator:
+    requests: {cpu: 30m, memory: 128Mi}
+    limits: {memory: 512Mi}
+  metricServer:
+    requests: {cpu: 30m, memory: 128Mi}
+    limits: {memory: 512Mi}
+  webhooks:
+    requests: {cpu: 10m, memory: 64Mi}
+    limits: {memory: 256Mi}

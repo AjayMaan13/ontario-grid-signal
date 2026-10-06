@@ -82,7 +82,7 @@ def main():
     })
     consumer.subscribe(TOPICS)
 
-    metrics, started = Metrics(Statsd(tags=["service:consumer"]), "consumer"), time.monotonic()
+    metrics, started = Metrics(Statsd(tags=["service:consumer", f"pod:{os.environ.get('HOSTNAME', 'local')}"]), "consumer"), time.monotonic()
     run_loop(consumer, lambda events: write_batch(client, dataset, events),
              int(os.environ.get("BATCH_SIZE", "500")), float(os.environ.get("FLUSH_SECONDS", "60")), metrics,
              float(os.environ.get("EXIT_WHEN_IDLE_SECONDS", "0")))

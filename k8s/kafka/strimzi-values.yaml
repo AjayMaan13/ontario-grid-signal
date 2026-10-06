@@ -1,0 +1,4 @@
+# The operator is idle most of the time; the default request of 200m CPU kept a whole node full.
+resources:
+  requests: {cpu: 50m, memory: 384Mi}
+  limits: {cpu: 500m, memory: 384Mi}

@@ -11,6 +11,13 @@ spec:
         port: 9092
         type: internal
         tls: false
+    template:
+      pod:
+        metadata:
+          annotations:
+            # Datadog's agent on this node runs the consumer-lag check for every consumer group (kafka.consumer_lag)
+            ad.datadoghq.com/kafka.checks: |
+              {"kafka_consumer": {"init_config": {}, "instances": [{"kafka_connect_str": "grid-kafka-kafka-bootstrap.kafka:9092", "monitor_unlisted_consumer_groups": true}]}}
     config:
       offsets.topic.replication.factor: 1
       transaction.state.log.replication.factor: 1

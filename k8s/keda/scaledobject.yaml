@@ -1,0 +1,22 @@
+# Scales the consumer between 1 and 6 replicas on Kafka lag.
+# Each replica should have about 2,000 events of lag to work through; with no lag it goes back to 1.
+# The ceiling is the number of partitions (18 across the three topics), so 6 replicas can all have work.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: consumer
+  namespace: grid
+spec:
+  scaleTargetRef:
+    name: consumer
+  minReplicaCount: 1
+  maxReplicaCount: 6
+  pollingInterval: 15
+  cooldownPeriod: 120
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: grid-kafka-kafka-bootstrap.kafka:9092
+        consumerGroup: bq-sink
+        lagThreshold: "2000"
+        offsetResetPolicy: earliest

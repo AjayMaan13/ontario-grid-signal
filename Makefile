@@ -24,7 +24,7 @@ test:
 kafka-up:
 	helm repo add strimzi https://strimzi.io/charts/ --force-update
 	helm upgrade --install strimzi strimzi/strimzi-kafka-operator \
-		--namespace kafka --create-namespace --version $(STRIMZI_VERSION)
+		--namespace kafka --create-namespace --version $(STRIMZI_VERSION) -f k8s/kafka/strimzi-values.yaml
 	kubectl -n kafka apply -f k8s/kafka/nodepool.yaml -f k8s/kafka/cluster.yaml
 	kubectl -n kafka wait kafka/grid-kafka --for=condition=Ready --timeout=300s
 	kubectl -n kafka apply -f k8s/kafka/topics.yaml
@@ -153,3 +153,30 @@ bq-signals:
 kafka-spread:
 	kubectl -n kafka run kafka-spread --rm -i --restart=Never --image=quay.io/strimzi/kafka:$(STRIMZI_VERSION)-kafka-4.3.1 -- bash -c \
 		'for t in ieso.demand.ici ieso.demand.predispatch ieso.demand.realtime; do echo "$$t"; bin/kafka-get-offsets.sh --bootstrap-server grid-kafka-kafka-bootstrap:9092 --topic $$t; done'
+
+# --- Datadog and KEDA ---
+# Keys come from your terminal environment (see the read -s lines); nothing is written to a file.
+datadog-secret:
+	@test -n "$$DD_API_KEY" || (echo "set DD_API_KEY first"; exit 1)
+	kubectl create namespace datadog --dry-run=client -o yaml | kubectl apply -f -
+	kubectl -n datadog create secret generic datadog-secret --from-literal=api-key="$$DD_API_KEY" --dry-run=client -o yaml | kubectl apply -f -
+
+datadog-up:
+	@test -n "$$DD_SITE" || (echo "set DD_SITE first, for example datadoghq.com"; exit 1)
+	helm repo add datadog https://helm.datadoghq.com --force-update
+	helm upgrade --install datadog datadog/datadog --namespace datadog --create-namespace --version 3.253.0 \
+		-f k8s/datadog/values.yaml --set datadog.site=$$DD_SITE
+	kubectl -n datadog rollout status daemonset/datadog --timeout=10m
+
+keda-up:
+	helm repo add kedacore https://kedacore.github.io/charts --force-update
+	helm upgrade --install keda kedacore/keda --namespace keda --create-namespace --version 2.21.0 -f k8s/keda/values.yaml
+	kubectl -n keda rollout status deployment/keda-operator --timeout=5m
+	kubectl -n keda rollout status deployment/keda-operator-metrics-apiserver --timeout=5m
+	kubectl apply -f k8s/keda/scaledobject.yaml
+
+# Rewind the consumer group to the start and time the drain. baseline = pinned at 1 replica; scaled = KEDA decides.
+loadtest-baseline:
+	./scripts/loadtest.sh baseline
+loadtest-scaled:
+	./scripts/loadtest.sh scaled

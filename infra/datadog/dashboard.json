@@ -1,0 +1,24 @@
+{
+  "title": "Ontario Grid Signal: pipeline health",
+  "description": "Freshness first, then lag, then errors. Metric names are listed in docs/observability.md.",
+  "layout_type": "ordered",
+  "widgets": [
+    {"definition": {"type": "timeseries", "title": "Data age: minutes since the newest data written to BigQuery was published by IESO",
+      "requests": [{"q": "max:grid.consumer.data_age_s{service:consumer} / 60", "display_type": "line"}],
+      "markers": [{"value": "y = 90", "display_type": "error dashed", "label": "alert at 90 min"}]}},
+    {"definition": {"type": "timeseries", "title": "Consumer lag: events waiting (all replicas)",
+      "requests": [{"q": "sum:grid.consumer.lag_total{service:consumer}", "display_type": "line"}]}},
+    {"definition": {"type": "timeseries", "title": "Consumer replicas",
+      "requests": [{"q": "sum:grid.consumer.up{service:consumer}", "display_type": "bars"}]}},
+    {"definition": {"type": "timeseries", "title": "Events written to BigQuery per second",
+      "requests": [{"q": "sum:grid.consumer.events_written{service:consumer}.as_rate()", "display_type": "bars"}]}},
+    {"definition": {"type": "timeseries", "title": "Seconds to write one batch (95th percentile)",
+      "requests": [{"q": "max:grid.consumer.batch_seconds.95percentile{service:consumer}", "display_type": "line"}]}},
+    {"definition": {"type": "timeseries", "title": "Producer: files that failed to parse",
+      "requests": [{"q": "sum:grid.producer.files_failed{*}.as_count()", "display_type": "bars"}]}},
+    {"definition": {"type": "timeseries", "title": "Producer: poll cycles (a heartbeat)",
+      "requests": [{"q": "sum:grid.producer.cycles{*}.as_count()", "display_type": "bars"}]}},
+    {"definition": {"type": "timeseries", "title": "Kafka lag as the Datadog integration sees it",
+      "requests": [{"q": "sum:kafka.consumer_lag{consumer_group:bq-sink}", "display_type": "line"}]}}
+  ]
+}

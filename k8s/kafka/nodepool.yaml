@@ -19,7 +19,7 @@ spec:
         kraftMetadata: shared
   resources:
     requests:
-      cpu: 250m
+      cpu: 150m
       memory: 1Gi
     limits:
       cpu: 500m

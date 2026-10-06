@@ -70,6 +70,7 @@ class Metrics:
             return
         self._last_heartbeat = now
         try:
+            self.statsd.gauge(f"{self.prefix}.up", 1)  # one series per pod, so summing them counts the replicas
             if self.newest_published is not None:
                 self.statsd.gauge(f"{self.prefix}.data_age_s", (datetime.now(timezone.utc) - self.newest_published).total_seconds())
             if consumer is not None and hasattr(consumer, "assignment"):
