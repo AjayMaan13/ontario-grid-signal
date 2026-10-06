@@ -23,7 +23,8 @@ Full plan: [Ontario-Grid-Signal-Build-Guide.md](Ontario-Grid-Signal-Build-Guide.
 | 2 | Kafka (Strimzi) on the cluster, topics declared in Git | Done |
 | 3 | Producer: IESO and the archive into Kafka, safe to restart | Done |
 | 4 | Consumer: Kafka into BigQuery (every version + latest), data-quality checks, replay from zero | Done |
-| 5-8 | Reconciliation, peak-risk signal, monitoring, load test | Not started |
+| 5 | Nightly reconciliation DAG on Airflow | In progress |
+| 6-8 | Peak-risk signal, monitoring, load test | Not started |
 
 ## Layout
 
@@ -33,6 +34,8 @@ sql/            BigQuery table design
 src/parsers/    turn raw IESO files into typed records (see tests/test_parsers.py)
 src/producer/   IESO or archive -> events -> Kafka, with a checkpoint so restarts send nothing twice
 src/consumer/   Kafka -> BigQuery (staging table + MERGE), and the data-quality checks
+src/reconcile/  what the nightly DAG does: find missed or re-issued files, resend, confirm
+dags/           the Airflow DAG
 schemas/        the JSON Schema every event must match
 archiver/       hourly job that copies IESO files into GCS before IESO deletes them
 infra/
@@ -42,6 +45,8 @@ infra/
 k8s/kafka/      Kafka cluster and topics (Strimzi custom resources)
 k8s/producer/   producer Deployment and backfill Job
 k8s/consumer/   consumer Deployment and replay Job
+k8s/airflow/    Helm values for Airflow
+airflow-image/  Airflow image with our libraries
 tests/          pytest: parsers (golden files) and the archiver's listing parser
 ```
 

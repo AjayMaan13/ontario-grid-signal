@@ -4,7 +4,7 @@ ZONE    = northamerica-northeast2-a
 
 STRIMZI_VERSION = 1.2.0
 
-.PHONY: up down test kafka-up kafka-test kafka-count producer-build producer-backfill producer-live consumer-up consumer-replay bq-test bq-check bq-summary bq-reset
+.PHONY: up down test kafka-up kafka-test kafka-count producer-build producer-backfill producer-live consumer-up consumer-replay bq-test bq-check bq-summary bq-reset bq-runs airflow-image airflow-up airflow-ui airflow-backfill airflow-down seed-restatement dag-test
 
 # Create the cluster and point kubectl at it.
 up:
@@ -89,3 +89,42 @@ bq-reset:
 # The MERGE statements and quality checks on real BigQuery, in a throwaway dataset (takes a few minutes).
 bq-test:
 	RUN_BQ_TESTS=1 uv run --with pytest --with jsonschema --with google-cloud-bigquery pytest tests/test_bigquery.py
+
+# --- Airflow (nightly reconciliation) ---
+AIRFLOW_IMAGE = northamerica-northeast2-docker.pkg.dev/$(PROJECT)/grid/airflow:latest
+
+# The official Airflow image plus the libraries our tasks import (our code arrives through git-sync).
+airflow-image:
+	gcloud builds submit airflow-image --tag $(AIRFLOW_IMAGE) --project $(PROJECT)
+
+airflow-up:
+	helm repo add apache-airflow https://airflow.apache.org --force-update
+	helm upgrade --install airflow apache-airflow/airflow --namespace airflow --create-namespace --version 1.22.0 \
+		-f k8s/airflow/values.yaml --timeout 15m --wait
+
+# Opens the Airflow screen on this Mac. Leave it running; login admin / admin.
+airflow-ui:
+	@echo "Open http://localhost:8080  (login: admin / admin)"
+	kubectl -n airflow port-forward svc/airflow-api-server 8080:8080
+
+# Run the DAG for past days:  make airflow-backfill FROM=2026-10-03 TO=2026-10-05
+airflow-backfill:
+	kubectl -n airflow exec -c scheduler $$(kubectl -n airflow get pods -l component=scheduler -o name | head -1) -- \
+		airflow backfill create --dag-id reconcile_ieso_revisions --from-date $(FROM) --to-date $(TO)
+
+# Remove Airflow and its database disk (do this before make down, or the disk is left behind).
+airflow-down:
+	helm uninstall airflow --namespace airflow --ignore-not-found
+	kubectl -n airflow delete pvc --all
+
+# For the end-to-end test: make the producer "forget" one finished hour, so the DAG has something to find.
+seed-restatement:
+	PYTHONPATH=src uv run --quiet --with google-cloud-bigquery --with google-cloud-storage --with jsonschema python -m reconcile.cli seed
+
+# Checks the DAG files without running them (needs Airflow, which needs Python 3.12).
+dag-test:
+	AIRFLOW_HOME=/tmp/airflow-test uv run --quiet --python 3.12 --with "apache-airflow==3.2.2" --with pytest pytest tests/test_dags.py
+
+# What each reconciliation run found (one row per run).
+bq-runs:
+	$(BQ_PYTHON) runs

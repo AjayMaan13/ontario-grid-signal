@@ -15,6 +15,6 @@ variable "zone" {
 
 variable "node_count" {
   type    = number
-  default = 3 # 2 wasn't enough: GKE's own system pods (kube-dns, fluentbit, ...) already
-  # use ~860m of each e2-medium's ~940m allocatable CPU, leaving no room for Kafka.
+  default = 4 # GKE's own system pods (kube-dns, fluentbit, ...) already use ~860m of each e2-medium's
+  # ~940m allocatable CPU. 3 nodes fit Kafka, producer and consumer; Airflow needed a 4th.
 }

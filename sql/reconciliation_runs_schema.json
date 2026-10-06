@@ -1,0 +1,16 @@
+[
+  {"name": "run_key", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "data_interval_start", "type": "TIMESTAMP", "mode": "REQUIRED"},
+  {"name": "data_interval_end", "type": "TIMESTAMP", "mode": "REQUIRED"},
+  {"name": "listed_files", "type": "INTEGER", "mode": "REQUIRED"},
+  {"name": "new_group_files", "type": "INTEGER", "mode": "REQUIRED"},
+  {"name": "new_version_files", "type": "INTEGER", "mode": "REQUIRED"},
+  {"name": "files_processed", "type": "INTEGER", "mode": "REQUIRED"},
+  {"name": "files_failed", "type": "INTEGER", "mode": "REQUIRED"},
+  {"name": "files_with_new_values", "type": "INTEGER", "mode": "REQUIRED"},
+  {"name": "events_sent", "type": "INTEGER", "mode": "REQUIRED"},
+  {"name": "events_landed", "type": "INTEGER", "mode": "REQUIRED"},
+  {"name": "status", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "by_report", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "recorded_at", "type": "TIMESTAMP", "mode": "REQUIRED"}
+]

@@ -88,3 +88,18 @@ resource "google_service_account_iam_member" "consumer_workload_identity" {
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.project_id}.svc.id.goog[grid/consumer]"
 }
+
+# airflow: reads the producer's checkpoint and keeps its own list of files it has already fixed
+resource "google_storage_bucket_iam_member" "airflow_state" {
+  bucket = data.google_storage_bucket.state.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.airflow.email}"
+}
+
+# Workload Identity: the Kubernetes service account "airflow" in namespace "airflow" acts as sa-airflow.
+# With LocalExecutor the tasks run inside the scheduler pod, which uses this account.
+resource "google_service_account_iam_member" "airflow_workload_identity" {
+  service_account_id = google_service_account.airflow.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[airflow/airflow]"
+}

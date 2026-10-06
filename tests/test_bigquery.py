@@ -13,10 +13,11 @@ from google.cloud import bigquery  # noqa: E402
 
 from consumer import quality  # noqa: E402
 from consumer.bq import SCHEMA, write_batch  # noqa: E402
+from reconcile.steps import RUN_SCHEMA, landed_count, record_run  # noqa: E402
 
 pytestmark = pytest.mark.skipif(not os.environ.get("RUN_BQ_TESTS"), reason="set RUN_BQ_TESTS=1 (make bq-test) to run against real BigQuery")
 PROJECT, LOCATION = "ontario-grid-signal", "northamerica-northeast2"
-TABLES = ("raw_demand_versions", "current_demand")
+TABLES = ("raw_demand_versions", "current_demand", "reconciliation_runs")
 
 
 @pytest.fixture(scope="module")
@@ -30,11 +31,12 @@ def dataset(client):
     new = bigquery.Dataset(f"{PROJECT}.{name}")
     new.location = LOCATION
     client.create_dataset(new)
-    for table in TABLES:  # same partitioning and clustering as infra/main/bigquery.tf
+    for table in TABLES[:2]:  # same partitioning and clustering as infra/main/bigquery.tf
         t = bigquery.Table(f"{PROJECT}.{name}.{table}", schema=SCHEMA)
         t.time_partitioning = bigquery.TimePartitioning(field="interval_start")
         t.clustering_fields = ["report", "zone"]
         client.create_table(t)
+    client.create_table(bigquery.Table(f"{PROJECT}.{name}.reconciliation_runs", schema=RUN_SCHEMA))
     yield name
     client.delete_dataset(f"{PROJECT}.{name}", delete_contents=True, not_found_ok=True)
 
@@ -132,3 +134,43 @@ def test_quality_checks_go_red_when_the_data_is_corrupted(client, dataset, check
     seed(client, dataset)
     client.query(damage.format(p=PROJECT, d=dataset)).result()
     assert quality.run_all(client, dataset)[check] > 0
+
+
+# ---- reconciliation: did the republished events land? and the run log ----
+
+def key(e):
+    return {k: e[k] for k in ("report", "interval_start", "version", "value_mw")}
+
+
+def test_landed_count_counts_events_whose_version_is_in_current(client, dataset):
+    events = [event(), event(start="2026-09-28T12:05:00Z", version=3)]
+    assert landed_count(client, dataset, [key(e) for e in events]) == 0  # nothing written yet
+    write_batch(client, dataset, events)
+    assert landed_count(client, dataset, [key(e) for e in events]) == 2
+
+
+def test_landed_count_does_not_count_an_event_whose_newer_version_has_not_arrived(client, dataset):
+    write_batch(client, dataset, [event(version=1)])
+    assert landed_count(client, dataset, [key(event(version=2))]) == 0  # current still holds version 1
+    assert landed_count(client, dataset, [key(event(version=1))]) == 1
+
+
+def test_landed_count_refuses_to_build_sql_from_an_unexpected_event(client, dataset):
+    bad = {**key(event()), "interval_start": "2026-09-28' OR 1=1 --"}
+    with pytest.raises(ValueError, match="refusing to build SQL"):
+        landed_count(client, dataset, [bad])
+
+
+def run_row(key_="2026-10-05T08:00:00+00:00", **changes):
+    row = {"run_key": key_, "data_interval_start": "2026-10-04T08:00:00Z", "data_interval_end": "2026-10-05T08:00:00Z", "listed_files": 100,
+           "new_group_files": 12, "new_version_files": 1, "files_processed": 13, "files_failed": 0, "files_with_new_values": 12,
+           "events_sent": 12, "events_landed": 12, "status": "ok", "by_report": "{}", "recorded_at": "2026-10-05T08:05:00Z"}
+    return {**row, **changes}
+
+
+def test_running_the_same_interval_again_replaces_its_row_not_adds_one(client, dataset):
+    record_run(client, dataset, run_row(events_sent=12))
+    record_run(client, dataset, run_row(events_sent=0))  # the rerun found nothing left to do
+    record_run(client, dataset, run_row(key_="2026-10-06T08:00:00+00:00"))
+    rows = [dict(r) for r in client.query(f"SELECT run_key, events_sent FROM `{PROJECT}.{dataset}.reconciliation_runs` ORDER BY run_key").result()]
+    assert rows == [{"run_key": "2026-10-05T08:00:00+00:00", "events_sent": 0}, {"run_key": "2026-10-06T08:00:00+00:00", "events_sent": 12}]

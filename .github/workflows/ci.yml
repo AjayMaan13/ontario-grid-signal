@@ -25,3 +25,10 @@ jobs:
       - run: tflint --recursive
       - name: checkov (security scan)
         run: pipx run checkov -d infra --quiet
+
+  dags:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: make dag-test

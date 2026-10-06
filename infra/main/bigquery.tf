@@ -40,3 +40,11 @@ resource "google_bigquery_table" "current_demand" {
     field = "interval_start"
   }
 }
+
+# One row per nightly reconciliation run: what it found, sent and confirmed.
+resource "google_bigquery_table" "reconciliation_runs" {
+  dataset_id          = google_bigquery_dataset.grid.dataset_id
+  table_id            = "reconciliation_runs"
+  schema              = file("${path.module}/../../sql/reconciliation_runs_schema.json")
+  deletion_protection = false
+}

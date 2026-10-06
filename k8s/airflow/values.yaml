@@ -1,0 +1,77 @@
+# Airflow on GKE, small: LocalExecutor (tasks run inside the scheduler pod), no Celery parts.
+# Install with: make airflow-up
+airflowVersion: "3.2.2"
+defaultAirflowRepository: northamerica-northeast2-docker.pkg.dev/ontario-grid-signal/grid/airflow
+defaultAirflowTag: "latest"
+images:
+  airflow:
+    pullPolicy: Always
+
+executor: LocalExecutor
+allowPodLaunching: false
+
+# Settings every Airflow container gets. PYTHONPATH finds our code in the git-synced repo.
+env:
+  - {name: PYTHONPATH, value: /opt/airflow/dags/repo/src}
+  - {name: AIRFLOW__CORE__LOAD_EXAMPLES, value: "False"}
+  - {name: GCP_PROJECT, value: ontario-grid-signal}
+  - {name: BQ_DATASET, value: grid}
+  - {name: RAW_BUCKET, value: ontario-grid-signal-raw}
+  - {name: KAFKA_BOOTSTRAP, value: "grid-kafka-kafka-bootstrap.kafka:9092"}
+  - {name: CHECKPOINT_URI, value: "gs://ontario-grid-signal-state/producer/checkpoint.json"}
+  - {name: HANDLED_URI, value: "gs://ontario-grid-signal-state/reconcile/handled.json"}
+
+# Parts we do not use
+triggerer: {enabled: false}
+statsd: {enabled: false}
+redis: {enabled: false}
+flower: {enabled: false}
+
+# DAG files come from the public GitHub repo: push to main and Airflow picks it up within a minute.
+dags:
+  gitSync:
+    enabled: true
+    repo: https://github.com/AjayMaan13/ontario-grid-signal.git
+    branch: main
+    ref: main
+    subPath: dags
+    period: 60s
+    depth: 1
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 128Mi}
+
+# The nodes have little spare CPU, so requests are small. Memory limits leave room for tasks.
+scheduler:
+  serviceAccount:
+    name: airflow  # linked to sa-airflow in infra/main/iam.tf
+    annotations:
+      iam.gke.io/gcp-service-account: sa-airflow@ontario-grid-signal.iam.gserviceaccount.com
+  logGroomerSidecar: {enabled: false}
+  resources:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {memory: 1536Mi}
+apiServer:
+  resources:
+    requests: {cpu: 50m, memory: 400Mi}
+    limits: {memory: 1Gi}
+dagProcessor:
+  logGroomerSidecar: {enabled: false}
+  resources:
+    requests: {cpu: 50m, memory: 400Mi}
+    limits: {memory: 1Gi}
+postgresql:
+  primary:
+    resources:
+      requests: {cpu: 50m, memory: 256Mi}
+      limits: {memory: 512Mi}
+    persistence:
+      size: 5Gi
+
+# With LocalExecutor the scheduler would otherwise claim a 100 GB disk for logs. Logs live in the pod only.
+workers:
+  persistence:
+    enabled: false
+  celery:
+    persistence:
+      enabled: false

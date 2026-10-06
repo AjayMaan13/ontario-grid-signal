@@ -54,10 +54,12 @@ class IESOSource:
     def __init__(self, lookback_hours=48):
         self.lookback = timedelta(hours=lookback_hours)
 
-    def list_files(self, report):
+    def list_files(self, report, since=None, until=None):
+        """Files published in [since, until). Default: the last `lookback_hours` up to now."""
         html = _fetch(f"{BASE}/{report}/").decode("latin-1")
-        oldest = datetime.now(timezone.utc) - self.lookback
-        return [SourceFile(name, when, f"{BASE}/{report}/{name}") for name, when in parse_listing(html) if is_wanted(report, name) and when >= oldest]
+        since = since or datetime.now(timezone.utc) - self.lookback
+        return [SourceFile(name, when, f"{BASE}/{report}/{name}") for name, when in parse_listing(html)
+                if is_wanted(report, name) and when >= since and (until is None or when < until)]
 
     def read(self, report, name):
         return _fetch(f"{BASE}/{report}/{name}").decode("utf-8")
