@@ -41,9 +41,10 @@ def seed():
     checkpoint = store.load(CHECKPOINT_URI)
     group, names = pick_hour(checkpoint)
     source = GCSSource(RAW_BUCKET)
+    listing = {f.name: f for f in source.list_files("RealtimeTotals")}  # list the bucket once, not once per file
     starts = set()
     for name in names:
-        file = next(f for f in source.list_files("RealtimeTotals") if f.name == name)
+        file = listing[name]
         for event in to_events("RealtimeTotals", name, parse_realtime_totals(source.read("RealtimeTotals", name)), file.published_at, file.uri, "backfill"):
             starts.add(event["interval_start"])
         checkpoint.files.discard(f"RealtimeTotals/{name}")

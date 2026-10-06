@@ -18,9 +18,9 @@ def test_every_dag_file_imports_without_errors(dagbag):
     assert dagbag.import_errors == {}
 
 
-def test_the_reconciliation_dag_is_there_with_its_five_tasks_in_order(dagbag):
+def test_the_reconciliation_dag_is_there_with_its_six_tasks_in_order(dagbag):
     dag = dagbag.dags["reconcile_ieso_revisions"]
-    assert [t.task_id for t in dag.topological_sort()] == ["find_changes", "fetch_and_archive", "republish", "verify_landed", "record_run_summary"]
+    assert [t.task_id for t in dag.topological_sort()] == ["find_changes", "fetch_and_archive", "republish", "verify_landed", "record_run_summary", "check_data_quality"]
 
 
 def test_every_dag_chooses_catchup_explicitly_and_has_an_owner_and_retries(dagbag):
@@ -37,3 +37,10 @@ def test_the_summary_task_runs_even_when_an_earlier_task_failed(dagbag):
 
 def test_only_one_run_at_a_time(dagbag):
     assert dagbag.dags["reconcile_ieso_revisions"].max_active_runs == 1
+
+
+def test_data_quality_is_the_last_task_and_runs_even_after_a_failure(dagbag):
+    dag = dagbag.dags["reconcile_ieso_revisions"]
+    last = dag.get_task("check_data_quality")
+    assert last.trigger_rule.value == "all_done"
+    assert last.downstream_task_ids == set() and last.upstream_task_ids == {"record_run_summary"}

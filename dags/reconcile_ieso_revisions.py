@@ -1,4 +1,5 @@
-"""Nightly: find IESO files the live path missed or IESO re-issued, send them through Kafka, confirm they landed.
+"""Nightly: find IESO files the live path missed or IESO re-issued, send them through Kafka, confirm they landed,
+record what happened, then run the data-quality checks.
 
 Every task works from the run's data interval, never from "now", so re-running any past day gives that day's answer.
 The task bodies live in src/reconcile/steps.py; imports are inside the tasks to keep DAG parsing fast.
@@ -105,11 +106,25 @@ def reconcile_ieso_revisions():
             "recorded_at": datetime.now(timezone.utc).isoformat(),
         })
 
+    @task(trigger_rule="all_done")  # check the data even if an earlier task had trouble
+    def check_data_quality():
+        """The Weekend 4 data-quality checks, run after every reconciliation. Any violation fails the run."""
+        from google.cloud import bigquery
+
+        from consumer import quality
+
+        client = bigquery.Client(project=os.environ["GCP_PROJECT"])
+        results = quality.run_all(client, os.environ.get("BQ_DATASET", "grid"))
+        violations = {name: count for name, count in results.items() if count}
+        if violations:
+            raise ValueError(f"data-quality violations: {violations}")
+        return results
+
     found = find_changes()
     archived = fetch_and_archive(found)
     result = republish(archived)
     landed = verify_landed(result)
-    record_run_summary(found, result, landed)
+    record_run_summary(found, result, landed) >> check_data_quality()
 
 
 reconcile_ieso_revisions()

@@ -147,3 +147,19 @@ def test_a_broken_file_is_reported_as_failed_not_hidden(tmp_path):
     result = republish(changes_for(archive_dir, ("RealtimeTotals", "PUB_RealtimeTotals_2026092809_v1.xml")),
                        DirectorySource(archive_dir), FakeProducer(), Checkpoint(), lambda report, name: name)
     assert result["processed"] == [] and len(result["failed"]) == 1
+
+
+# ---- the seed tool: which hour does it make the producer forget? ----
+
+def test_seed_picks_the_newest_complete_hour_that_is_old_enough():
+    from reconcile.cli import pick_hour
+
+    now = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))  # IESO's EST
+    stamp = lambda hours_ago: (now - timedelta(hours=hours_ago)).strftime("%Y%m%d%H")
+    checkpoint = Checkpoint()
+    for hours_ago, versions in [(100, 12), (80, 12), (80 - 30, 12), (75, 11), (10, 12)]:  # 50h old, 75h incomplete, 10h too new
+        for v in range(1, versions + 1):
+            checkpoint.mark_file_done("RealtimeTotals", f"PUB_RealtimeTotals_{stamp(hours_ago)}_v{v}.xml")
+    chosen, names = pick_hour(checkpoint)
+    assert chosen == f"PUB_RealtimeTotals_{stamp(80)}.xml"  # 80h old: complete and older than 72h
+    assert len(names) == 12 and names == sorted(names)
