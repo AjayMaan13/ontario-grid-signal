@@ -6,7 +6,7 @@ The task bodies live in src/reconcile/steps.py; imports are inside the tasks to 
 import os
 from datetime import datetime, timedelta, timezone
 
-from airflow.sdk import dag, task
+from airflow.sdk import PokeReturnValue, dag, task
 
 LOOKBACK = timedelta(days=30)  # IESO keeps hourly files for about a month
 
@@ -67,10 +67,12 @@ def reconcile_ieso_revisions():
 
         from reconcile.steps import landed_count
 
+        # A sensor only hands a value to the next task when it is wrapped in PokeReturnValue(xcom_value=...).
         if not result["events"]:
-            return True  # nothing new was sent (identical values), so there is nothing to wait for
+            return PokeReturnValue(is_done=True, xcom_value=True)  # nothing new was sent, so there is nothing to wait for
         client = bigquery.Client(project=os.environ["GCP_PROJECT"])
-        return landed_count(client, os.environ.get("BQ_DATASET", "grid"), result["events"]) == len(result["events"])
+        done = landed_count(client, os.environ.get("BQ_DATASET", "grid"), result["events"]) == len(result["events"])
+        return PokeReturnValue(is_done=done, xcom_value=done)
 
     @task(trigger_rule="all_done")  # record the run even when the check above timed out
     def record_run_summary(found, result, landed):

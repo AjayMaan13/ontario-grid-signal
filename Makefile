@@ -100,17 +100,19 @@ airflow-image:
 airflow-up:
 	helm repo add apache-airflow https://airflow.apache.org --force-update
 	helm upgrade --install airflow apache-airflow/airflow --namespace airflow --create-namespace --version 1.22.0 \
-		-f k8s/airflow/values.yaml --timeout 15m --wait
+		-f k8s/airflow/values.yaml
+	kubectl -n airflow rollout status deployment/airflow-api-server --timeout=15m
+	kubectl -n airflow rollout status deployment/airflow-scheduler --timeout=15m
 
 # Opens the Airflow screen on this Mac. Leave it running; login admin / admin.
 airflow-ui:
 	@echo "Open http://localhost:8080  (login: admin / admin)"
 	kubectl -n airflow port-forward svc/airflow-api-server 8080:8080
 
-# Run the DAG for past days:  make airflow-backfill FROM=2026-10-03 TO=2026-10-05
+# Run the DAG for past days (days that already ran are run again):  make airflow-backfill FROM=2026-10-03 TO=2026-10-05
 airflow-backfill:
 	kubectl -n airflow exec -c scheduler $$(kubectl -n airflow get pods -l component=scheduler -o name | head -1) -- \
-		airflow backfill create --dag-id reconcile_ieso_revisions --from-date $(FROM) --to-date $(TO)
+		airflow backfill create --dag-id reconcile_ieso_revisions --from-date $(FROM) --to-date $(TO) --reprocess-behavior completed
 
 # Remove Airflow and its database disk (do this before make down, or the disk is left behind).
 airflow-down:
